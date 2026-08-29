@@ -58,11 +58,12 @@ During development, several issues broke the pipeline or degraded performance, r
 *   **API Rate Limiting:** The evaluation script (`evaluate.py`) triggered Google Gemini's free-tier API rate limits ("429 Too Many Requests") because it fired LLM calls in a tight loop. *Fix:* Added a forced 15-second `time.sleep()` between evaluation cases to respect limits.
 *   **LLM Hallucinations on Out-of-Scope Queries:** When asked about unrelated topics (e.g., "capital of France"), the model would sometimes try to answer based on its pre-training rather than the retrieved policy text. *Fix:* Engineered a strict Chain-of-Thought system prompt forcing the model to explicitly verify if the context contains the answer and output an exact refusal string if it doesn't.
 
+*   **API Cost Constraints & Provider Migration:** Development initially began using OpenAI models. However, I quickly realized I lacked the API credits/funds on that account and had to pivot the entire pipeline to Google Gemini's free tier. *Fix:* Because I had designed the system using LangChain's abstract interfaces (`BaseChatModel` and `Embeddings`) and Dependency Injection, this migration required zero rewrites to the core `InferenceEngine`. It proved the architecture is highly resilient and future-proofed for swapping LLM vendors instantly.
+
 ## 5. Future Improvements (What to do with more time)
 
 If given more time to transition this MVP into an enterprise-grade production system, I would implement the following:
 
 *   **Cosine Similarity Thresholds:** Currently, the system blindly retrieves the Top-5 chunks (`k=5`). For completely unrelated queries, this returns the 5 "least bad" chunks. I would add a strict confidence score threshold; if the top chunk falls below it, the system short-circuits and refuses to answer, saving token costs and reducing hallucination risks.
 *   **Query Rewriting & Session Memory:** The current CLI is stateless and single-turn. To support conversational Q&A, I would add a rolling buffer memory and a lightweight LLM pre-processing step that rewrites conversational history into a standalone, optimized search query before hitting ChromaDB.
-*   **Ingestion Resilience:** `document_fetcher.py` uses a basic `ThreadPoolExecutor`. In a scaled environment, I would add Dead Letter Queues (DLQ) and exponential backoff (e.g., using the `tenacity` library) to ensure network failures don't corrupt large ingestion batches.
 *   **Private LLM Hosting:** For strict HIPAA/OMH compliance with Protected Health Information (PHI), the backend would be swapped from Google Gemini to a privately hosted Azure OpenAI instance or a local Llama-3 model. Because the `InferenceEngine` uses dependency injection, this requires zero changes to the core logic.
